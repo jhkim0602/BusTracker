@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>버스 위치 정보 API 테스트</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js'></script>
+    <script src='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-language/v1.0.0/mapbox-gl-language.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>API</h1>
+    <div id="map"></div>
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1Ijoic2VvamgyajEiLCJhIjoiY21iNG95bWgxMGQ5azJpcTYwZmp6YTZzbSJ9.85nfoQRfn_yj-lBQslHTaA';
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/seojh2j1/cmb5vp0s800g701rkbtvqfxc6',
+            center: [126.77724, 37.4888],
+            pitch: 60,
+            zoom: 15
+        });
+
+        map.on('style.load', () => {
+            map.addSource('mapbox-dem', {
+                'type': 'raster-dem',
+                'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+                'tileSize': 512,
+                'maxzoom': 14
+            });
+            map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
+        });
+
+        const busMarker = new mapboxgl.Marker().setLngLat([127.26539, 36.27255]).addTo(map);
+
+        let first = true;
+
+        function getBusLocation() {
+            const xhr = new XMLHttpRequest();
+
+            const serviceKey = "XQ%2FN7khTTUo7HqTGit9F57PV8IwHasPVh1%2FShC5C%2F1f2yBYDaJ2fGGCq4GJBfpkjzrWRmKJIDvut0kxJS73Npw%3D%3D";
+            const cityCode = "31230";
+            const routeId = "GGB232000005";
+
+            const url = `http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&_type=json`;
+
+            xhr.open("GET", url);
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+
+                        const res = document.querySelector("#result");
+                        const bus = data.response.body.items.item[0];
+
+                        const latRaw = bus.gpslati;
+                        const lngRaw = bus.gpslong;
+
+                        if (latRaw != null && lngRaw != null) {
+                            const lat = parseFloat(bus.gpslati); // 위도
+                            const lng = parseFloat(bus.gpslong); // 경도
+
+                            busMarker.setLngLat([lng, lat]);
+                            if (first) {
+                                map.flyTo({ center: [lng, lat], zoom: 17 });
+                                first = false;
+                            }
+
+                            console.log(bus);
+                            console.log(lat, lng);
+                        } else {
+                            console.warn("위치 정보가 없습니다.", bus);
+                        }
+                    } catch (e) {
+                        console.log(e);
+                    }
+                } else {
+                    console.log(xhr.status);
+                }
+            };
+            xhr.send();
+        }
+
+        //setInterval(getBusLocation, 10000);
+    </script>
+</body>
+
+</html>
