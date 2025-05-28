@@ -9,20 +9,79 @@
     <script src='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-language/v1.0.0/mapbox-gl-language.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css' rel='stylesheet' />
     <style>
+        html,
+        body {
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+        }
+
+        h1 {
+            margin: 10px;
+        }
+
         #map {
-            position: absolute;
-            top: 0;
-            bottom: 0;
             width: 100%;
+            height: 100%;
+            border: 1px solid black;
+            border-radius: 10px;
+        }
+
+        #box {
+            display: flex;
+            flex-direction: row;
+        }
+
+        #selBox {
+            display: flex;
+            align-items: center;
+            margin: 10px;
+        }
+
+        #selBox label {
+            margin-right: 10px;
+        }
+
+        #busLastLoc {
+            margin: 10px;
         }
     </style>
 </head>
 
 <body>
     <h1>API</h1>
+    <div id="box">
+        <div id="selBox">
+            <label for="city">도시</label>
+            <select name="city" id="city"></select>
+        </div>
+
+        <div id="selBox">
+            <label for="bus">버스 번호</label>
+            <select name="bus" id="bus"></select>
+        </div>
+
+        <div id="selBox">
+            <label for="busSel">버스 선택</label>
+            <select name="busSel" id="busSel"></select>
+        </div>
+
+        <div id="selBox">
+            <label for="time">시간</label>
+            <select name="time" id="time"></select>
+        </div>
+    </div>
+
+    <p id="busLastLoc">버스 마지막 위치 :</p>
+
     <div id="map"></div>
+
     <script>
         mapboxgl.accessToken = 'pk.eyJ1Ijoic2VvamgyajEiLCJhIjoiY21iNG95bWgxMGQ5azJpcTYwZmp6YTZzbSJ9.85nfoQRfn_yj-lBQslHTaA';
+        const serviceKey = "XQ%2FN7khTTUo7HqTGit9F57PV8IwHasPVh1%2FShC5C%2F1f2yBYDaJ2fGGCq4GJBfpkjzrWRmKJIDvut0kxJS73Npw%3D%3D";
+
         const map = new mapboxgl.Map({
             container: 'map',
             style: 'mapbox://styles/seojh2j1/cmb5vp0s800g701rkbtvqfxc6',
@@ -39,29 +98,170 @@
                 'maxzoom': 14
             });
             map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
+            map.setConfigProperty('basemap', 'lightPreset', 'day');
         });
-
-        const busMarker = new mapboxgl.Marker().setLngLat([127.26539, 36.27255]).addTo(map);
 
         let first = true;
 
-        function getBusLocation() {
-            const xhr = new XMLHttpRequest();
+        let cityCode = "";
+        let routeId = "";
+        let busSelNum = 0;
 
-            const serviceKey = "XQ%2FN7khTTUo7HqTGit9F57PV8IwHasPVh1%2FShC5C%2F1f2yBYDaJ2fGGCq4GJBfpkjzrWRmKJIDvut0kxJS73Npw%3D%3D";
-            const cityCode = "31230";
-            const routeId = "GGB232000005";
+        const busMarker = new mapboxgl.Marker().setLngLat([0, 0]).addTo(map);
 
-            const url = `http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&_type=json`;
+        const bus = document.getElementById("bus");
+        const busSel = document.getElementById("busSel");
+        const xhr = new XMLHttpRequest();
+
+        function clearSelBox(el) {
+            while (el.children.length > 0) { // 도시 드롭다운 초기화
+                el.removeChild(el.children[0]); // 도시 목록의 첫 번째 자식 <option> 요소를 제거함.
+            }
+        }
+
+        function getMapTime() {
+            const timeSel = document.getElementById("time");
+            const timeList = ["day", "night", "dusk", "dawn"];
+
+            for (const x of timeList) {
+                let el = document.createElement("option")
+                el.setAttribute('value', x);
+                el.appendChild(document.createTextNode(x));
+                timeSel.appendChild(el);
+            }
+
+            timeSel.addEventListener("change", function () {
+                map.setConfigProperty('basemap', 'lightPreset', `${timeSel.value}`);
+                console.log(timeSel.value);
+            });
+        }
+
+        function getCityCode() {
+            const url = `http://apis.data.go.kr/1613000/BusRouteInfoInqireService/getCtyCodeList?serviceKey=${serviceKey}&_type=json`
 
             xhr.open("GET", url);
             xhr.onreadystatechange = function () {
                 if (xhr.readyState === 4 && xhr.status === 200) {
                     try {
                         const data = JSON.parse(xhr.responseText);
+                        const citySel = document.getElementById("city");
+                        const cityList = data.response.body.items.item;
+
+                        for (const x of cityList) {
+                            let el = document.createElement("option")
+                            el.value = x.citycode;
+                            el.text = x.cityname;
+                            citySel.appendChild(el);
+                        }
+
+                        citySel.addEventListener("change", function () {
+                            cityCode = citySel.value;
+                            clearSelBox(bus);
+                            clearSelBox(busSel);
+                            console.log(cityCode)
+                            getBusNum(cityCode);
+                        })
+                        console.log(cityList)
+                    } catch (e) {
+                        console.log(e);
+                    }
+                } else {
+                    console.log(xhr.status);
+                }
+            }
+            xhr.send();
+        }
+
+        function getBusNum(citycode) {
+            const url = `http://apis.data.go.kr/1613000/BusRouteInfoInqireService/getRouteNoList?serviceKey=${serviceKey}&cityCode=${citycode}&_type=json`
+
+            xhr.open("GET", url);
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        const busList = data.response.body.items.item;
+
+                        for (const x of busList) {
+                            let el = document.createElement("option")
+                            el.value = x.routeid;
+                            el.text = x.routeno;
+                            bus.appendChild(el);
+                        }
+
+                        bus.addEventListener("change", function () {
+                            routeId = bus.value;
+                            clearSelBox(busSel);
+                            console.log(routeId)
+                            busSelect(cityCode, routeId);
+                        })
+                        console.log(busList)
+                    } catch (e) {
+                        console.log(e);
+                    }
+                } else {
+                    console.log(xhr.status);
+                }
+            }
+            xhr.send();
+        }
+
+        function busSelect(cityCode, routeId) {
+            let busSelUrl = `http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&_type=json`;
+
+            xhr.open("GET", busSelUrl);
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        const bus = data.response.body.items.item;
+                        const busList = [];
+
+                        for (let i = 0; i < bus.length; i++) {
+                            busList.push(i + 1);
+                        }
+
+                        clearSelBox(busSel);
+
+                        for (const x of busList) {
+                            let el = document.createElement("option")
+                            el.setAttribute('value', x);
+                            el.appendChild(document.createTextNode(x));
+                            busSel.appendChild(el);
+                        }
+
+                        busSel.addEventListener("change", function () {
+                            first = true;
+                            busSelNum = busSel.value;
+                            getBusLocation(cityCode, routeId, busSelNum);
+                            setInterval(() => getBusLocation(cityCode, routeId, busSelNum), 5000);
+                        })
+
+                    } catch (e) {
+                        console.log(e);
+                    }
+                } else {
+                    console.log(xhr.status);
+                }
+            };
+            xhr.send();
+        }
+
+        function getBusLocation(cityCode, routeId, busSelNum) {
+            const xhr = new XMLHttpRequest();
+
+            let busLocUrl = `http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&_type=json`;
+
+            xhr.open("GET", busLocUrl);
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
 
                         const res = document.querySelector("#result");
-                        const bus = data.response.body.items.item[0];
+                        const LastLoc = document.querySelector("#busLastLoc");
+
+                        const bus = data.response.body.items.item[busSelNum];
 
                         const latRaw = bus.gpslati;
                         const lngRaw = bus.gpslong;
@@ -71,10 +271,13 @@
                             const lng = parseFloat(bus.gpslong); // 경도
 
                             busMarker.setLngLat([lng, lat]);
+
                             if (first) {
                                 map.flyTo({ center: [lng, lat], zoom: 17 });
                                 first = false;
                             }
+
+                            LastLoc.textContent = `버스 마지막 위치 : ${bus.nodenm}`;
 
                             console.log(bus);
                             console.log(lat, lng);
@@ -91,7 +294,8 @@
             xhr.send();
         }
 
-        //setInterval(getBusLocation, 10000);
+        getCityCode();
+        getMapTime();
     </script>
 </body>
 
