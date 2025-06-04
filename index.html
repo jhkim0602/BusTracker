@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>버스 위치 정보 API 테스트</title>
+    <title>BusTracker</title>
     <script src='https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js'></script>
     <script src='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-language/v1.0.0/mapbox-gl-language.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css' rel='stylesheet' />
@@ -51,7 +51,7 @@
 </head>
 
 <body>
-    <h1>API</h1>
+    <h1>BusTracker</h1>
     <div id="box">
         <div id="selBox">
             <label for="city">도시</label>
@@ -87,7 +87,7 @@
             style: 'mapbox://styles/seojh2j1/cmb5vp0s800g701rkbtvqfxc6',
             center: [126.77724, 37.4888],
             pitch: 60,
-            zoom: 15
+            zoom: 16
         });
 
         map.on('style.load', () => {
@@ -101,17 +101,26 @@
             map.setConfigProperty('basemap', 'lightPreset', 'day');
         });
 
-        let first = true;
-
         let cityCode = "";
         let routeId = "";
         let busSelNum = 0;
+
+        let lat = null;
+        let lng = null;
+        let prev = null;
+        let next = null;
+
+        let busInterval = null;
+        let busLocInterval = null;
+        let busSelInterval = null;
+        let moveMarkerInterval = null;
+
+        let isFirst = true;
 
         const busMarker = new mapboxgl.Marker().setLngLat([0, 0]).addTo(map);
 
         const bus = document.getElementById("bus");
         const busSel = document.getElementById("busSel");
-        const xhr = new XMLHttpRequest();
 
         function clearSelBox(el) {
             while (el.children.length > 0) { // 도시 드롭다운 초기화
@@ -138,6 +147,7 @@
 
         function getCityCode() {
             const url = `http://apis.data.go.kr/1613000/BusRouteInfoInqireService/getCtyCodeList?serviceKey=${serviceKey}&_type=json`
+            const xhr = new XMLHttpRequest();
 
             xhr.open("GET", url);
             xhr.onreadystatechange = function () {
@@ -174,6 +184,7 @@
 
         function getBusNum(citycode) {
             const url = `http://apis.data.go.kr/1613000/BusRouteInfoInqireService/getRouteNoList?serviceKey=${serviceKey}&cityCode=${citycode}&_type=json`
+            const xhr = new XMLHttpRequest();
 
             xhr.open("GET", url);
             xhr.onreadystatechange = function () {
@@ -185,7 +196,7 @@
                         for (const x of busList) {
                             let el = document.createElement("option")
                             el.value = x.routeid;
-                            el.text = x.routeno;
+                            el.text = `${x.routeno}번`;
                             bus.appendChild(el);
                         }
 
@@ -207,7 +218,8 @@
         }
 
         function busSelect(cityCode, routeId) {
-            let busSelUrl = `http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&_type=json`;
+            const busSelUrl = `http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&_type=json`;
+            const xhr = new XMLHttpRequest();
 
             xhr.open("GET", busSelUrl);
             xhr.onreadystatechange = function () {
@@ -231,10 +243,10 @@
                         }
 
                         busSel.addEventListener("change", function () {
-                            first = true;
-                            busSelNum = busSel.value;
+                            isFirst = true;
+                            busSelNum = parseInt(busSel.value);
+                            if (busSelInterval) clearInterval(busInterval);
                             getBusLocation(cityCode, routeId, busSelNum);
-                            setInterval(() => getBusLocation(cityCode, routeId, busSelNum), 5000);
                         })
 
                     } catch (e) {
@@ -248,9 +260,8 @@
         }
 
         function getBusLocation(cityCode, routeId, busSelNum) {
+            const busLocUrl = `http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&_type=json`;
             const xhr = new XMLHttpRequest();
-
-            let busLocUrl = `http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&_type=json`;
 
             xhr.open("GET", busLocUrl);
             xhr.onreadystatechange = function () {
@@ -267,20 +278,33 @@
                         const lngRaw = bus.gpslong;
 
                         if (latRaw != null && lngRaw != null) {
-                            const lat = parseFloat(bus.gpslati); // 위도
-                            const lng = parseFloat(bus.gpslong); // 경도
+                            lat = parseFloat(bus.gpslati); // 위도
+                            lng = parseFloat(bus.gpslong); // 경도
 
-                            busMarker.setLngLat([lng, lat]);
-
-                            if (first) {
-                                map.flyTo({ center: [lng, lat], zoom: 17 });
-                                first = false;
+                            if (next !== null) {
+                                prev = [...next];
+                            } else {
+                                prev = [lng, lat];
                             }
+                            next = [lng, lat];
+
+                            // if (first) {
+                            //     map.flyTo({ center: [lng, lat], zoom: 16 });
+                            //     first = false;
+                            // }
+                            moveMarker(prev, next);
+                            if (busLocInterval) clearInterval(busLocInterval);
+                            busLocInterval = setInterval(() => {
+                                next = [lng, lat];
+                                getBusLocation(cityCode, routeId, busSelNum);
+                                console.log(`URL 주소 : ${busLocUrl}`);
+                                console.log(`prev : ${prev}, next : ${next}`);
+                            }, 10000);
 
                             LastLoc.textContent = `버스 마지막 위치 : ${bus.nodenm}`;
 
                             console.log(bus);
-                            console.log(lat, lng);
+                            console.log(lng, lat);
                         } else {
                             console.warn("위치 정보가 없습니다.", bus);
                         }
@@ -291,6 +315,51 @@
                     console.log(xhr.status);
                 }
             };
+            xhr.send();
+        }
+
+        function moveMarker(prev, next) {
+            const DirectionUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${prev};${next}?overview=full&geometries=geojson&access_token=${mapboxgl.accessToken}`;
+            const xhr = new XMLHttpRequest();
+
+            xhr.open("GET", DirectionUrl);
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        console.log(data);
+                        const coords = data.routes[0].geometry.coordinates;
+
+                        let i = 0;
+                        const interval = 10000 / coords.length;
+
+                        function animate() {
+                            if (i < coords.length) {
+                                map.jumpTo({ center: coords[i] });
+                                busMarker.setLngLat(coords[i]);
+                                //map.flyTo({ center: [lng, lat], zoom: 16 });
+                                i++;
+                                setTimeout(animate, interval);
+                                //requestAnimationFrame(animate);
+                            }
+                        }
+
+                        if (isFirst === true) {
+                            const [lng, lat] = coords[coords.length - 1];
+                            busMarker.setLngLat([lng, lat]);
+                            map.jumpTo({ center: [lng, lat], zoom: 16 });
+                            isFirst = false;
+
+                            return;
+                        } else {
+                            animate();
+                            console.log(`isFirst = ${isFirst}`);
+                        }
+                    } catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
             xhr.send();
         }
 
