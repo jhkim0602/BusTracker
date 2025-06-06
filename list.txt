@@ -5,3 +5,5 @@ http://apis.data.go.kr/1613000/BusRouteInfoInqireService/getCtyCodeList?serviceK
 http://apis.data.go.kr/1613000/BusRouteInfoInqireService/getRouteNoList?serviceKey=XQ%2FN7khTTUo7HqTGit9F57PV8IwHasPVh1%2FShC5C%2F1f2yBYDaJ2fGGCq4GJBfpkjzrWRmKJIDvut0kxJS73Npw%3D%3D&cityCode=31230&_type=json
 
 http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList?serviceKey=XQ%2FN7khTTUo7HqTGit9F57PV8IwHasPVh1%2FShC5C%2F1f2yBYDaJ2fGGCq4GJBfpkjzrWRmKJIDvut0kxJS73Npw%3D%3D&cityCode=31230&routeId=GGB232000005&_type=json
+
+http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoSpcifySttnAccesBusLcInfo?serviceKey=XQ%2FN7khTTUo7HqTGit9F57PV8IwHasPVh1%2FShC5C%2F1f2yBYDaJ2fGGCq4GJBfpkjzrWRmKJIDvut0kxJS73Npw%3D%3D&cityCode=31230&routeId=GGB232000005&_type=json

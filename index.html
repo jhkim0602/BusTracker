@@ -60,12 +60,15 @@
 
         <div id="selBox">
             <label for="bus">버스 번호</label>
-            <select name="bus" id="bus"></select>
+            <select name="bus" id="bus">
+            </select>
         </div>
 
         <div id="selBox">
             <label for="busSel">버스 선택</label>
-            <select name="busSel" id="busSel"></select>
+            <select name="busSel" id="busSel">
+
+            </select>
         </div>
 
         <div id="selBox">
@@ -107,6 +110,7 @@
         let cityCode = ""; // 도시 코드
         let routeId = ""; // 버스 번호
         let busSelNum = 0; // 버스 선택 ( 하나의 버스여도 여러개가 존재하기 때문 )
+        let numOfRows = 0;
 
         let lat = null; // 위도
         let lng = null; // 경도
@@ -117,6 +121,7 @@
 
         let isFirst = true; // 첫 위치 설정 여부
         let isAnimating = false; // 애니메이션 상태
+
 
         const busMarker = new mapboxgl.Marker().setLngLat([0, 0]).addTo(map); // MapBox API의 마커 생성
 
@@ -214,6 +219,8 @@
                             console.log(routeId)
                             console.log(`URL 주소 : ${url}`);
                             busSelect(cityCode, routeId); // 해당 버스의 갯수를 조회하는 함수 호출
+                            removeBusStopLabels();
+                            getBusNodetotalCount(cityCode, routeId);
                         }
 
                         bus.removeEventListener("change", onBusNumChange); // 기존 이벤트 리스너 제거 (중복 방지)
@@ -241,9 +248,19 @@
                         const bus = data.response.body.items.item; // 해당 버스 여러대의 데이터
                         const busList = []; // 버스 개수를 저장하기 위한 리스트
 
-                        for (let i = 0; i < bus.length; i++) { // 버스의 갯수만큼 반복
-                            busList.push(i + 1); // busList에 추가
+                        console.log(`${busSelUrl}`);
+                        if (Array.isArray(bus)) {
+                            busList.push("선택");
+                            for (let i = 0; i < bus.length; i++) { // 버스의 갯수만큼 반복
+                                busList.push(i + 1); // busList에 추가
+                            }
+                        } else if (!bus) {
+                            alert("운행중인 버스가 없습니다.");
+                        } else {
+                            busList.push("선택");
+                            busList.push(1);
                         }
+
 
                         for (const x of busList) { // busList의 목록을 셀렉트 박스에 추가
                             let el = document.createElement("option") // <option> 요소 생성
@@ -273,6 +290,118 @@
             xhr.send();
         }
 
+        function getBusNodeName(cityCode, routeId, numOfRows) { // 버스 정류소 이름을 가져오는 함수
+            const url = `http://apis.data.go.kr/1613000/BusRouteInfoInqireService/getRouteAcctoThrghSttnList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&numOfRows=${numOfRows}&pageNo=1&_type=json`;
+            const xhr = new XMLHttpRequest(); // XMLHttpRequest 객체 생성
+            console.log(`버스 정류소 이름 : ${url}`);
+
+            xhr.open("GET", url); // 비동기 방식으로 Request를 오픈
+            xhr.onreadystatechange = function () { // Event Handler 상태 변화 체크
+                if (xhr.readyState === 4 && xhr.status === 200) { // 요청 완료 && 응답 성고 시
+                    try {
+                        let stops = []; // 버스 정류소 이름, 좌표 저장하는 배열 
+                        let name = ""; // 버스 정류소 이름
+                        let lng = 0; // 경도
+                        let lat = 0; // 위도
+                        const data = JSON.parse(xhr.responseText); // JSON 형식으로 파싱
+                        const items = data.response.body.items.item; // 버스 노선 데이터
+
+                        for (let i = 0; i < items.length; i++) {
+                            //console.log(`${items}`);
+                            //console.log(items[i].nodenm);
+                            name = items[i].nodenm;
+                            lng = items[i].gpslong;
+                            lat = items[i].gpslati;
+                            stops.push({ name, lng, lat });
+                            // JSON으로 불러온 데이터들을 변수에 저장 후 배열에 푸쉬
+                        }
+                        console.log(stops);
+
+                        addBusStopLabels(stops);
+                    } catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+            xhr.send();
+        }
+
+        function getBusNodetotalCount(cityCode, routeId) { // 해당 버스의 정류소 갯수를 가져오는 함수
+            const url = `http://apis.data.go.kr/1613000/BusRouteInfoInqireService/getRouteAcctoThrghSttnList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&numOfRows=10&pageNo=1&_type=json`;
+            const xhr = new XMLHttpRequest(); // XMLHttpRequest 객체 생성
+            console.log(`버스 정류소 이름 : ${url}`);
+
+            xhr.open("GET", url); // 비동기 방식으로 Request를 오픈
+            xhr.onreadystatechange = function () { // Event Handler 상태 변화 체크
+                if (xhr.readyState === 4 && xhr.status === 200) { // 요청 완료 && 응답 성고 시
+                    try {
+                        const data = JSON.parse(xhr.responseText); // JSON 형식으로 파싱
+                        const body = data.response.body; // 버스 노선 데이터
+
+                        let totalCount = body.totalCount; // 버스 정류소 개수
+                        console.log(`토탈카운트 : ${totalCount}`)
+
+                        getBusNodeName(cityCode, routeId, totalCount); // 버스 정류소 이름을 가져오는 함수 호출
+
+                    } catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+            xhr.send();
+        }
+
+        function addBusStopLabels(stops) { // MapBox API를 이용해 지도에 버스 정류장 위치에 이름 추가하는 함수
+            // MapBox API는 GeoJSON 형식으로 데이터를 줘야 지도에 표시를 할 수 있어 GeoJSON 방식을 사용하였습니다.
+            if (stops) {
+                const features = stops.map(stop => ({ // 각 정류장의 정보를 GeoJSON 형식의 Feature로 변환
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Point', // 위치 타입은 포인트
+                        coordinates: [stop.lng, stop.lat] // 경도, 위도 순으로 좌표 설정
+                    },
+                    properties: {
+                        title: stop.name
+                    }
+                }));
+
+                map.addSource('bus-stops', { // 'bus-stops'라는 이름으로 정류장 데이터를 지도에 데이터 소스로 추가
+                    type: 'geojson', // 데이터 형식은 GeoJSON
+                    data: {
+                        type: 'FeatureCollection', // 여러 Feature들을 모은 컬렉션
+                        features
+                    }
+                });
+
+                map.addLayer({ // 'bus-stop-labels'라는 레이어를 추가하여 정류장 이름을 지도에 표시
+                    id: 'bus-stop-labels', // 레이어 ID
+                    type: 'symbol', // 심볼 타입으로 텍스트를 표시
+                    source: 'bus-stops', // 위에서 정의한 데이터 소스를 사용
+                    layout: {
+                        'text-field': ['get', 'title'], // 표시할 텍스트는 Feature의 title 속성
+                        'text-size': 20, // 텍스트 크기
+                        'text-offset': [0, 1.2], // 포인트 위치에서 위로 약간 띄워 표시
+                        'text-anchor': 'top' // 텍스트 기준점을 포인트의 위쪽으로 설정
+                    },
+                    paint: {
+                        'text-color': '#ff0000', // 텍스트 색상 (빨간색)
+                        'text-halo-color': '#ffffff', // 텍스트 주변 테두리 색상 (흰색)
+                        'text-halo-width': 3 // 테두리 두께
+                    }
+                });
+            }
+        }
+
+        function removeBusStopLabels() { // 추가한 버스 정류소 이름 제거하는 함수
+            if (map.getLayer('bus-stop-labels')) { // 'bus-stop-labels'라는 레이어가 지도에 존재하면 제거
+                map.removeLayer('bus-stop-labels');
+            }
+
+            if (map.getSource('bus-stops')) { // 'bus-stops'라는 데이터 소스가 지도에 존재하면 제거
+                map.removeSource('bus-stops');
+            }
+        }
+
         function getBusLocation(cityCode, routeId, busSelNum) { // 선택된 버스의 위치를 불러오는 함수
             const busLocUrl = `http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&_type=json`;
             const xhr = new XMLHttpRequest(); // XMLHttpRequest 객체 생성
@@ -288,12 +417,15 @@
                         const items = data.response.body.items.item; // 버스 위치 데이터
 
                         if (!Array.isArray(items)) { // items가 배열이 아닐 경우 경고
-                            console.warn("버스 데이터가 배열이 아닙니다.")
+                            console.log(`버스 데이터가 배열이 아닙니다. ${items}`);
+                            console.log(`버스 위치 정보 ${busLocUrl}`);
                             if (busSelNum !== 0) { // 유효하지 않은 버스 번호일 경우
-                                alert("버스 번호가 잘못되었습니다.")
+                                console.log(`버스 번호가 잘못되었습니다. ${busSelNum}`);
+                                return;
                             }
                         } else if (busSelNum < 0 || busSelNum >= items.length) { // busSelNum이 배열 범위를 벗어나면 경고
-                            alert("유효하지 않은 버스 선택 번호입니다.")
+                            alert("유효하지 않은 버스 선택 번호입니다.");
+                            return;
                         }
 
                         const bus = Array.isArray(items) ? items[busSelNum] : items; // items가 배열이면 busSelNum 번째 아이템 선택, 아니면 단일 객체 사용
@@ -359,14 +491,14 @@
 
             xhr.open("GET", DirectionUrl); // 비동기 방식으로 Request를 오픈
             xhr.onreadystatechange = function () { // Event Handler 상태 변화 체크
-                if (xhr.readyState === 4 && xhr.status === 200) { // 요청 완료 && 응답 성고 시
+                if (xhr.readyState === 4 && xhr.status === 200) { // 요청 완료 && 응답 성공 시
                     try {
                         const data = JSON.parse(xhr.responseText); // JSON 형식으로 파싱
                         console.log(data);
                         const coords = data.routes[0].geometry.coordinates; // 경로 좌표 배열
 
                         let i = 0;
-                        const interval = 10000 / coords.length; // 애니메이션 간격 계산 (총 10초를 좌표 개수로 나눔)
+                        const interval = 10000 / coords.length; // 애니메이션 간격 계산 (애니메이션을 10초에 걸쳐서 끝내기 위함)
 
                         function animate() { // 애니메이션 함수 정의
                             if (i < coords.length) {
