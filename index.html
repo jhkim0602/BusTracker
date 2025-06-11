@@ -256,7 +256,7 @@
     <div id="map"></div>
 
     <script>
-        /* 
+        /*
         MapBox(지도), 버스 노선 정보, 버스 위치 정보 총 3개의 API를 사용했습니다.
         */
         mapboxgl.accessToken = 'pk.eyJ1Ijoic2VvamgyajEiLCJhIjoiY21iNG95bWgxMGQ5azJpcTYwZmp6YTZzbSJ9.85nfoQRfn_yj-lBQslHTaA'; // MapBox API 액세스 토큰
@@ -291,8 +291,8 @@
 
         let lat = null; // 위도
         let lng = null; // 경도
-        let prev = null; // 위도,경도 이전 값 
-        let next = null; // 위도,경도 다음 값 
+        let prev = null; // 위도,경도 이전 값
+        let next = null; // 위도,경도 다음 값
 
         let busLocInterval = null; // 인터벌 중복 실행 방지
 
@@ -300,6 +300,7 @@
         let isAnimating = false; // 애니메이션 상태
 
         let stationItems = [];
+        let stops = []; // 전역 변수로 stops 배열 선언
 
         const busMarker = new mapboxgl.Marker().setLngLat([0, 0]).addTo(map); // MapBox API의 마커 생성
 
@@ -537,59 +538,6 @@
             xhr.send(); // Request 전송
         }
 
-        // function busSelect(cityCode, routeId) { // 해당 버스들 중 하나를 선택하는 함수
-        //     const busSelUrl = `http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&_type=json`;
-        //     const xhr = new XMLHttpRequest(); // XMLHttpRequest 객체 생성
-
-        //     xhr.open("GET", busSelUrl); // 비동기 방식으로 Request를 오픈
-        //     xhr.onreadystatechange = function () { // Event Handler 상태 변화 체크
-        //         if (xhr.readyState === 4 && xhr.status === 200) { // 요청 완료 && 응답 성고 시
-        //             try {
-        //                 const data = JSON.parse(xhr.responseText); // JSON 형식으로 파싱
-        //                 const bus = data.response.body.items.item; // 해당 버스 여러대의 데이터
-        //                 const busList = []; // 버스 개수를 저장하기 위한 리스트
-
-        //                 console.log(`${busSelUrl}`);
-        //                 if (Array.isArray(bus)) {
-        //                     busList.push("선택");
-        //                     for (let i = 0; i < bus.length; i++) { // 버스의 갯수만큼 반복
-        //                         busList.push(i + 1); // busList에 추가
-        //                     }
-        //                 } else if (!bus) {
-        //                     alert("운행중인 버스가 없습니다.");
-        //                 } else { // 설렉트 박스에 선택지가 하나만 있을 경우 선택이 되지 않는 것을 방지 하기 위함.
-        //                     busList.push("선택");
-        //                     busList.push(1);
-        //                 }
-
-        //                 for (const x of busList) { // busList의 목록을 셀렉트 박스에 추가
-        //                     let el = document.createElement("option") // <option> 요소 생성
-        //                     el.setAttribute('value', x); // <option> 요소의 value 값 지정
-        //                     el.appendChild(document.createTextNode(x)); // <option> 요소의 text 값 지정
-        //                     busSel.appendChild(el); // <select> 요소에 추가
-        //                 }
-
-        //                 function onBusSelChange() { // 버스 선택 변경 이벤트 핸들러 함수
-        //                     isFirst = true; // 첫 위치 설정 여부
-        //                     isAnimating = false; // 애니메이션 상태 초기화 (다시 시작 가능하도록)
-        //                     busSelNum = parseInt(busSel.value); // 선택된 버스 번호를 숫자로 변환하여 저장
-        //                     console.log(`URL 주소 : ${busSelUrl}`);
-        //                     getBusLocation(cityCode, routeId, busSelNum); // 선택된 버스의 위치 정보 요청 함수 호출
-        //                 }
-
-        //                 busSel.removeEventListener("change", onBusSelChange); // 기존 이벤트 리스너 제거 (중복 방지)
-        //                 busSel.addEventListener("change", onBusSelChange); // 새로운 이벤트 리스너 등록
-
-        //             } catch (e) {
-        //                 console.log(e);
-        //             }
-        //         } else {
-        //             console.log(xhr.status);
-        //         }
-        //     };
-        //     xhr.send();
-        // }
-
         function getBusRouteList(cityCode, routeId, numOfRows) { // 버스 정류소 이름을 가져오는 함수
             const url = `http://apis.data.go.kr/1613000/BusRouteInfoInqireService/getRouteAcctoThrghSttnList?serviceKey=${serviceKey}&cityCode=${cityCode}&routeId=${routeId}&numOfRows=${numOfRows}&pageNo=1&_type=json`;
             const xhr = new XMLHttpRequest(); // XMLHttpRequest 객체 생성
@@ -599,7 +547,7 @@
             xhr.onreadystatechange = function () { // Event Handler 상태 변화 체크
                 if (xhr.readyState === 4 && xhr.status === 200) { // 요청 완료 && 응답 성고 시
                     try {
-                        let stops = []; // 버스 정류소 이름, 좌표 저장하는 배열 
+                        stops = []; // stops 배열 초기화
                         let name = ""; // 버스 정류소 이름
                         let lng = 0; // 경도
                         let lat = 0; // 위도
@@ -607,13 +555,10 @@
                         const items = data.response.body.items.item; // 버스 노선 데이터
 
                         for (let i = 0; i < items.length; i++) {
-                            //console.log(`${items}`);
-                            //console.log(items[i].nodenm);
                             name = items[i].nodenm;
                             lng = items[i].gpslong;
                             lat = items[i].gpslati;
-                            stops.push({ name, lng, lat });
-                            // JSON으로 불러온 데이터들을 변수에 저장 후 배열에 푸쉬
+                            stops.push({ name, lng, lat, nodeNo: items[i].nodeno }); // nodeNo 정보 추가
                         }
                         console.log(stops);
 
@@ -797,55 +742,68 @@
             xhr.send();
         }
 
-        function moveMarker(prev, next) { // 위치를 기반으로 마커를 이동시키는 함수
-            /*
-            해당 함수는 MapBox API 안에 있는 Directions API를 사용하였습니다.
-            Mapbox Directions API는 두 지점(또는 여러 지점) 사이의 최적 경로를 계산해 주는 서비스입니다.
-            자동차, 도보, 자전거 등 다양한 이동 수단에 맞춘 경로를 제공해서 
-            저는 이 API를 사용해서 마커가 도로를 따라가게 만들었습니다.
-            또한 해당 API는 GeoJSON(공간 정보(위치, 도형 등 지리 데이터)를 표현하기 위해 JSON을 확장한 형식)을 사용하였습니다.
-            */
-
-            if (isAnimating) { // 이미 애니메이션이 진행 중이면 중복 실행 방지
+        function moveMarker(prev, next) {
+            if (isAnimating) {
                 console.log("애니메이션이 이미 실행 중입니다.");
                 return;
             }
-            isAnimating = true; // 애니메이션 시작 설정
+            isAnimating = true;
 
             const DirectionUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${prev};${next}?overview=full&geometries=geojson&access_token=${mapboxgl.accessToken}`;
-            const xhr = new XMLHttpRequest(); // XMLHttpRequest 객체 생성
+            const xhr = new XMLHttpRequest();
 
-            xhr.open("GET", DirectionUrl); // 비동기 방식으로 Request를 오픈
-            xhr.onreadystatechange = function () { // Event Handler 상태 변화 체크
-                if (xhr.readyState === 4 && xhr.status === 200) { // 요청 완료 && 응답 성공 시
+            xhr.open("GET", DirectionUrl);
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4 && xhr.status === 200) {
                     try {
-                        const data = JSON.parse(xhr.responseText); // JSON 형식으로 파싱
+                        const data = JSON.parse(xhr.responseText);
                         console.log(data);
-                        const coords = data.routes[0].geometry.coordinates; // 경로 좌표 배열
+                        const coords = data.routes[0].geometry.coordinates;
 
                         let i = 0;
-                        const interval = 10000 / coords.length; // 애니메이션 간격 계산 (애니메이션을 10초에 걸쳐서 끝내기 위함)
+                        const interval = 10000 / coords.length;
 
-                        function animate() { // 애니메이션 함수 정의
+                        function animate() {
                             if (i < coords.length) {
-                                map.jumpTo({ center: coords[i] }); // 해당 좌표로 지도 중심 이동
-                                busMarker.setLngLat(coords[i]); // 해당 좌표로 마커 위치 변경
+                                map.jumpTo({ center: coords[i] });
+                                busMarker.setLngLat(coords[i]);
                                 i++;
-                                setTimeout(animate, interval); // 일정 간격 후 재귀 호출
+                                setTimeout(animate, interval);
                             } else {
-                                isAnimating = false; // 애니메이션 종료
+                                isAnimating = false;
                             }
                         }
 
-                        if (isFirst === true) { // 첫 실행 시에는 지도 줌 및 위치 설정만 하고 애니메이션은 실행하지 않음
-                            const [lng, lat] = coords[coords.length - 1]; // 좌표 가져오기
-                            busMarker.setLngLat([lng, lat]); // 마커 위치 설정
-                            map.jumpTo({ center: [lng, lat], zoom: 16 }); // 지동 중심 및 줌 조정
+                        if (isFirst === true) {
+                            const [lng, lat] = coords[coords.length - 1];
+                            busMarker.setLngLat([lng, lat]);
+                            map.jumpTo({ center: [lng, lat], zoom: 16 });
                             isFirst = false;
                             isAnimating = false;
+
+                            // 마커 클릭 이벤트 리스너 추가
+                            busMarker.getElement().addEventListener('click', () => {
+                                const currentStop = stops.find(stop => stop.nodeNo === nodeNo);
+                                const nextStopIndex = stops.findIndex(stop => stop.nodeNo === nodeNo) + 1;
+                                const nextStop = nextStopIndex < stops.length ? stops[nextStopIndex] : null;
+                                const lastStop = stops[stops.length - 1];
+
+                                const popupContent = `
+                                    <div style="padding: 10px; font-family: 'Segoe UI', sans-serif;">
+                                        <p style="margin: 0 0 5px 0; font-weight: bold;">${lastStop.name} 방면</p>
+                                        <p style="margin: 0; color: #666;">다음 정류소: ${nextStop ? nextStop.name : '종점'}</p>
+                                    </div>
+                                `;
+
+                                new mapboxgl.Popup({ closeButton: true, closeOnClick: false })
+                                    .setLngLat([lng, lat])
+                                    .setHTML(popupContent)
+                                    .addTo(map);
+                            });
+
                             return;
                         } else {
-                            animate(); // 첫 실행이 아니면 애니메이션 실행
+                            animate();
                             console.log(`isFirst = ${isFirst}`);
                         }
                     } catch (e) {
@@ -858,21 +816,6 @@
 
         getCityCode();
         setMapTime();
-
-        /*
-        API 실습을 진행하면서 해결하지 못한 문제가 있습니다.
-        
-        1. Mapbox Directions API를 사용하다 보니 해당 API가 좌표를 잘못 계산해서 한참을 돌아가는 경우가 발생합니다. 
-           해당 문제는 API 자체의 한계로 보여서 현재로선 해결이 어려울 것 같습니다.
-
-        2. 두번째로 moveMarker 함수 내 animate 애니메이션이 부드럽지 않고 뚝뚝 끊기는 문제가 있습니다.
-           선형 보간(두 지점 사이의 값을 직선으로 연결하여 추정하는 방법)을 적용하면 개선할 수 있을 것 같지만 구현이 까다로워 적용하지 못했습니다.
-           또한 애니메이션을 적용하기 위해 갱신된 API를 호출하고 실행하는 과정에서 몇 초 정도의 차이가 발생합니다.
-        
-        3. 공공데이터 포털의 버스 위치 정보 API의 갱신 주기가 10~20초 라고 적혀있는데, 실제 갱신 간격이 랜덤하고 일정하지 않습니다.
-           따라서 10초마다 API를 호출해도 실시간 갱신이 제대로 이루어지지 않아 실시간 정보로 보기 어렵습니다.
-           이 문제도 API 제공 방식의 한계로 인해 해결하지 못했습니다.
-        */
     </script>
 </body>
 
